@@ -1,0 +1,1 @@
+/home/palmik/Documents/Programming/Haskell/list/cabal-dev/bin/list
