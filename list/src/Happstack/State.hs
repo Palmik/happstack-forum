@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 
 module Happstack.State
@@ -13,7 +14,7 @@ module Happstack.State
 import           Prelude
 ------------------------------------------------------------------------------
 import           Control.Exception.Lifted    (bracket)
-import           Control.Monad.Trans         (MonadIO(..))
+import           Control.Monad.Trans         (MonadTrans(..), MonadIO(..))
 import           Control.Monad.Trans.Control (MonadBaseControl(..))
 ------------------------------------------------------------------------------
 import           Data.Data
@@ -24,6 +25,9 @@ import qualified Data.Acid.Advanced as AS
 
 class HasAcidState m st where
    getAcidState :: m (AS.AcidState st)
+
+instance (Monad m, HasAcidState m st, MonadTrans mt) => HasAcidState (mt m) st where
+   getAcidState = lift getAcidState
 
 -- |
 query :: forall event m.
@@ -58,6 +62,6 @@ withLocalState :: (MonadBaseControl IO m, MonadIO m, AS.IsAcidic st, Typeable st
                -> (AS.AcidState st -> m a) -- ^ function which uses the `AcidState` handle
                -> m a
 withLocalState mPath initialState =
-    bracket (liftIO $ (maybe AS.openLocalState AS.openLocalStateFrom mPath) initialState)
+    bracket (liftIO $ maybe AS.openLocalState AS.openLocalStateFrom mPath initialState)
             (liftIO . AS.createCheckpointAndClose)
             

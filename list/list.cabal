@@ -24,65 +24,110 @@ executable list
       , Site.Route
 
       , Site.Common.Model
+      , Site.Common.Controller
+      , Site.Common.Controller.Form
       , Site.Common.View.Template
 
       , Site.Core.Route
-      , Site.Core.State
+      , Site.Core.Route.Type
+      , Site.Core.Model
+      , Site.Core.Model.State
+      , Site.Core.Model.Type
+      , Site.Core.Model.Type.Credentials
       , Site.Core.Model.Type.Identity
       , Site.Core.Model.Type.Profile
+      , Site.Core.Model.ACID.Credentials
+      , Site.Core.Model.ACID.Identity
+      , Site.Core.Model.ACID.Profile
+      , Site.Core.Model.ACID.Session
+      , Site.Core.Model.Credentials
+      , Site.Core.Model.Identity
+      , Site.Core.Model.Profile
+      , Site.Core.Model.Session
       , Site.Core.Controller.Handler.Home
+      , Site.Core.Controller.Handler.Signin
+      , Site.Core.Controller.Handler.Signup
+      , Site.Core.Controller.Handler.Identity.Read
+      , Site.Core.Controller.Form.Identity
+      , Site.Core.Controller.Form.Profile
+      , Site.Core.Controller.Form.Auth.Password
+      , Site.Core.View.Template.Identity
 
       , Site.Forum.Route
-      , Site.Forum.State
+      , Site.Forum.Route.Type
+      , Site.Forum.Model
+      , Site.Forum.Model.State
       , Site.Forum.Model.Type.Comment
       , Site.Forum.Model.Type.Forum
       , Site.Forum.Model.Type.Post
+      , Site.Forum.Model.ACID.Comment
+      , Site.Forum.Model.ACID.Forum
+      , Site.Forum.Model.ACID.Post
+      , Site.Forum.Model.Comment
+      , Site.Forum.Model.Forum
+      , Site.Forum.Model.Post
       , Site.Forum.Controller.Handler.Home
+      , Site.Forum.Controller.Handler.Comment.Create
+      , Site.Forum.Controller.Handler.Forum.List
+      , Site.Forum.Controller.Handler.Forum.Create
+      , Site.Forum.Controller.Handler.Forum.Read
+      , Site.Forum.Controller.Form.Comment
+      , Site.Forum.Controller.Form.Forum
+      , Site.Forum.Controller.Form.Post
+      , Site.Forum.View.Template.Comment
+      , Site.Forum.View.Template.Forum
+      , Site.Forum.View.Template.Post
 
       , Happstack.Identity
       , Happstack.Identity.Types
       , Happstack.Identity.Auth.Password
       , Happstack.Identity.Auth.Password.Types
+      , Happstack.Identity.Auth.Password.Default
+      , Happstack.Identity.Auth.Password.Default.Form
+      , Happstack.Identity.Auth.Session      
 
       , Happstack.Profile
       , Happstack.Profile.Types
 
     build-depends:
-        base        == 4.5.*
+        base >= 4.5
 
-      , acid-state == 0.6.*
-      , safecopy   == 0.6.*
-      , ixset      == 1.0.*
+      , acid-state >= 0.6.7.1
+      , safecopy   >= 0.6
+      , ixset      >= 1.0
 
-      , blaze-markup == 0.5.*
-      , blaze-html   == 0.5.*
+      , blaze-markup >= 0.5
+      , blaze-html   >= 0.5
 
-      , happstack-server == 7.0.*
+      , happstack-server >= 7.0
 
-      , reform           == 0.1.*
-      , reform-happstack == 0.1.*
+      , reform           >= 0.1
+      , reform-blaze     >= 0.1
+      , reform-happstack >= 0.1
 
-      , web-routes           == 0.27.*
-      , web-routes-boomerang == 0.27.*
-      , web-routes-happstack == 0.23.*
-      , web-routes-th        == 0.22.*
+      , web-routes           >= 0.27
+      , web-routes-boomerang >= 0.27
+      , web-routes-happstack >= 0.23
+      , web-routes-th        >= 0.22
 
-      , bytestring    == 0.9.*
-      , filepath      == 1.3.*
-      , lifted-base   == 0.1.*
-      , monad-control == 0.3.*
-      , mtl           == 2.1.*
-      , pwstore-fast  == 2.2.*
-      , text          == 0.11.*
-
+      , bytestring         >= 0.9
+      , data-default       >= 0.5
+      , data-lens          >= 2.10
+      , data-lens-template >= 2.1
+      , filepath           >= 1.3
+      , lifted-base        >= 0.1
+      , monad-control      >= 0.3
+      , mtl                >= 2.1
+      , parsec             >= 3.1
+      , pwstore-fast       >= 2.2
+      , random             >= 1.0
+      , tagged             >= 0.4
+      , text               >= 0.11
+      , time               >= 1.4 
 
 
 
     ghc-options: -threaded -Wall -fwarn-unused-imports -O0
 
     extensions:
-        OverloadedStrings
-      , NoImplicitPrelude
-      , TypeSynonymInstances
-      , GeneralizedNewtypeDeriving
-      , DeriveDataTypeable
+        NoImplicitPrelude

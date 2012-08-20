@@ -1,12 +1,21 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Site.Common.View.Template
 ( DefaultTemplate(..)
 , defaultTemplate
+
+, route
+, icon
+, entity
 ) where
 
 ------------------------------------------------------------------------------
 import           Common
+------------------------------------------------------------------------------
+import qualified Happstack.Server   as HA
+import qualified Happstack.Identity as HA
 ------------------------------------------------------------------------------
 import qualified Web.Routes.PathInfo as WR
 ------------------------------------------------------------------------------
@@ -29,8 +38,24 @@ data DefaultTemplate = DefaultTemplate
     , templateSectionR :: [B.Html]
     }
 
-defaultTemplate :: DefaultTemplate -> B.Html
-defaultTemplate DefaultTemplate{..} = do
+instance Default DefaultTemplate where
+    def = DefaultTemplate
+            { templateTitle = "Untitled"
+            , templateSectionHead = []
+            , templateSectionL = []
+            , templateSectionM = []
+            , templateSectionR = []
+            }
+
+defaultTemplate :: (HA.Happstack m, HA.HasIdentityManager m)
+                => DefaultTemplate
+                -> m B.Html
+defaultTemplate args = do
+    signedIn <- HA.hasSessionCookie 
+    return $! rawDefaultTemplate signedIn args
+
+rawDefaultTemplate :: Bool -> DefaultTemplate -> B.Html
+rawDefaultTemplate signedIn DefaultTemplate{..} = do
   B.docType
   B.html $ do
     B.head $ do
@@ -45,11 +70,11 @@ defaultTemplate DefaultTemplate{..} = do
       sequence_ templateSectionHead
 
     B.body $ do
-      B.div ! B.class_ "navbar navbar-fixed-top" $ do
-        B.div ! B.class_ "navbar-inner" $ do
+      B.div ! B.class_ "navbar navbar-fixed-top" $ 
+        B.div ! B.class_ "navbar-inner" $ 
           B.div ! B.class_ "container-fluid" $ do
             B.a ! B.class_ "brand" ! B.href "#" $ "Project name"
-            B.div ! B.class_ "nav-collapse" $ do
+            B.div ! B.class_ "nav-collapse" $ 
               B.ul ! B.class_ "nav" $ do
                 B.li $ B.a ! B.href (route $ I.Core  IC.Home) $ "Home"
                 B.li $ B.a ! B.href (route $ I.Forum IF.Home) $ "Forums"
@@ -57,19 +82,25 @@ defaultTemplate DefaultTemplate{..} = do
       B.div ! B.class_ "container-fluid" $ do
         B.div ! B.class_ "row-fluid" $ do
           B.div ! B.class_ "span3" $ do
-            B.div ! B.class_ "well sidebar-nav" $ do
+            B.div ! B.class_ "well sidebar-nav" $ 
               B.ul ! B.class_ "nav nav-list" $ do
-                B.li $ B.a ! B.href (route $ I.Core  IC.Home) $ icon "home"    <> " Home"
-                B.li $ B.a ! B.href (route $ I.Forum IF.Home) $ icon "comment" <> " Forums"
+                B.li $ B.a ! B.href (route $ I.Core  IC.Home)   $ icon "home"    <> " Home"
+                B.li $ B.a ! B.href (route $ I.Forum IF.Home)   $ icon "comment" <> " Forums"
+                if signedIn
+                   then do 
+                     B.li $ B.a ! B.href (route $ I.Core IC.Signout) $ icon "off" <> " Sign out"
+                     B.li $ B.a ! B.href (route $ I.Core IC.IdentitySelfUpdate) $ icon "user" <> " Identity"
+                   else
+                     B.li $ B.a ! B.href (route $ I.Core  IC.Signin)  $ icon "off" <> " Sign in"
 
-            B.div ! B.class_ "well" $ do
+            B.div ! B.class_ "well" $ 
               sequence_ templateSectionL
 
-          B.div ! B.class_ "span6" $ do
+          B.div ! B.class_ "span6" $ 
             sequence_ templateSectionM
 
-          B.div ! B.class_ "span3" $ do
-            B.div ! B.class_ "well" $ do
+          B.div ! B.class_ "span3" $
+            B.div ! B.class_ "well" $ 
               sequence_ templateSectionR
 
         B.hr

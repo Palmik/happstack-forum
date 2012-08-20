@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Site.Forum.Controller.Handler.Home
 ( handler
@@ -8,24 +9,23 @@ module Site.Forum.Controller.Handler.Home
 import           Common
 ------------------------------------------------------------------------------
 import qualified Happstack.Server as HA
-import qualified Happstack.State  as HA
 ------------------------------------------------------------------------------
 import qualified Web.Routes           as WR
 import qualified Web.Routes.Happstack as WR ()
 ------------------------------------------------------------------------------
-import qualified Text.Blaze.Html as B
+-- import qualified Text.Blaze.Html as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
-import qualified Site.Forum.Route.Type as IF
-import qualified Site.Forum.State      as IF
+import qualified Site.Forum.Route.Type  as IF
+import qualified Site.Forum.Model.State as IF
 ------------------------------------------------------------------------------
 
-handler :: (HA.HasAcidState m IF.ForumState, HA.FilterMonad HA.Response m)
+handler :: IF.HasForum m 
         => WR.RouteT IF.Route m HA.Response
-handler = HA.ok $ HA.toResponse $ defaultTemplate $ DefaultTemplate
+handler = HA.ok =<< HA.toResponse <$> defaultTemplate DefaultTemplate
     { templateTitle = "Forum Home"
     , templateSectionHead = []
-    , templateSectionL = [B.toHtml $ ("Left Sidebar" :: String)]
-    , templateSectionM = [B.toHtml $ ("Forum Home" :: String)]
-    , templateSectionR = [B.toHtml $ ("Right Sidebar" :: String)]
+    , templateSectionL = ["Left Sidebar"]
+    , templateSectionM = ["Forum Home"]
+    , templateSectionR = ["Right Sidebar"]
     }

@@ -1,41 +1,28 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Common
-( module Prelude
-
-, module Control.Applicative
-, module Control.Category
-, module Control.Monad
-
-, module Data.Data
-, module Data.Maybe
-, module Data.Monoid
-, module Data.Either
-, module Data.Int
-
-, module System.FilePath
-
-, BS.ByteString
-, TS.Text
-, Proxy(..)
+( module Export 
 ) where
 
 ------------------------------------------------------------------------------
-import           Prelude hiding (id,  (.), (++))
+import           Prelude as Export hiding (id,  (.), (++), lookup) 
 ------------------------------------------------------------------------------
-import           Control.Applicative 
-import           Control.Category    (id, (.))
-import           Control.Monad
+import           Control.Applicative as Export
+import           Control.Category    as Export (id, (.))
+import           Control.Monad       as Export
+import           Control.Arrow       as Export ((&&&))
 ------------------------------------------------------------------------------
-import           Data.Data
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Either
-import qualified Data.ByteString as BS
-import qualified Data.Text       as TS
-import           Data.Int              (Int64)
-import           Data.IxSet (Proxy(..))
+import           Data.Data        as Export
+import           Data.Default     as Export
+import           Data.Maybe       as Export
+import           Data.Monoid      as Export
+import           Data.Either      as Export
+import           Data.ByteString  as Export (ByteString)
+import           Data.Text        as Export (Text)
+import           Data.Int         as Export (Int64)
+import           Data.Lens.Common as Export
+import           Data.Lens.Strict as Export
 ------------------------------------------------------------------------------
-import           System.FilePath ((</>))
+import           System.FilePath as Export ((</>))
 ------------------------------------------------------------------------------
 

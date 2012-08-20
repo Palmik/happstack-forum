@@ -1,67 +1,94 @@
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Happstack.Identity.Auth.Session
-( Session(..)
-, SessionKey(..)
-, SessionCookie(..)
+( I.Session(..)
+, I.SessionKey(..)
+, I.SessionCookie(..)
+
+, createSessionData
+, createSessionCookie
+, deleteSessionCookie
+, lookupSessionCookie
+, hasSessionCookie
 ) where
 
 ------------------------------------------------------------------------------
+import           Prelude
+------------------------------------------------------------------------------
 import qualified Happstack.Server as HA
 ------------------------------------------------------------------------------
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BS (pack)
+import	         Control.Applicative
+import       		 Control.Monad.Trans (MonadIO(..))
+------------------------------------------------------------------------------
+import qualified Data.ByteString.Char8 as BS (pack, unpack)
 ------------------------------------------------------------------------------
 import qualified Crypto.PasswordStore as PS
 ------------------------------------------------------------------------------
-import qualified Happstack.Identity.Types as I
+import qualified Happstack.Identity.Types              as I
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 -- | SESSION
 
-newtype SessionKey = SessionKey { unSessionKey :: BS.ByteString }
-data Session m = Session
-    { sessionIdentityID :: IdentityID m
-  --  sessionExpiration :: UTCTime
-  --  ...
-    }
-
-makeSession :: (MonadIO m, FilterMonad Response m, I.HasAuthManager m)
-               => I.IdentityID m
-               -> m (Session, SessionKey, SessionCookie)
-makeSession iid = do
-    skey <- makeSessionKey iid
-    let session = Session iid
-    let scookie = SessionCookie skey
+createSessionData :: ( Applicative m, MonadIO m
+                     , HA.FilterMonad HA.Response m
+                     , I.HasIdentityManager m
+                     )
+                   => I.IdentityID m
+                   -> m (I.Session (I.IdentityID m), I.SessionKey, I.SessionCookie)
+createSessionData iid = do
+    skey <- makeSessionKey
+    let session = I.Session iid
+    let scookie = I.SessionCookie skey
     return (session, skey, scookie)
 
 ------------------------------------------------------------------------------
 -- | COOKIE
 
-    newtype SessionCookie = SessionCookie { unSessionCookie :: SessionKey }
-
 sessionCookieKey :: String
-sessionCookieKey = "auth_cookie"
+sessionCookieKey = "session_cookie"
 
-addSessionCookie :: (MonadIO m, FilterMonad Response m)
-                 -> SessionCookie
-                 -> m ()
-addSessionCookie mlife (SessionCookie iids) = HA.addCookie life cookie
+createSessionCookie :: (MonadIO m, HA.FilterMonad HA.Response m)
+                    => I.SessionCookie
+                    -> m ()
+createSessionCookie (I.SessionCookie (I.SessionKey iids)) =
+    HA.addCookie life cookie
     where life   = HA.Session
-          cookie = HA.Cookie "1" "/" "" sessionCookieKey iids True True
+          cookie = HA.Cookie "1" "/" "" sessionCookieKey (BS.unpack iids) False False 
 
-expireSessionCookie :: (MonadIO m, FilterMonad Response m)
+deleteSessionCookie :: (MonadIO m, HA.FilterMonad HA.Response m)
                     => m ()
-expireSessionCookie = HA.expireCookie sessionCookieKey
+deleteSessionCookie = HA.expireCookie sessionCookieKey
+
+lookupSessionCookie :: ( Applicative m, MonadIO m, HA.FilterMonad HA.Response m
+                       , HA.HasRqData m, HA.ServerMonad m
+                       )
+                    => m (Maybe I.SessionCookie)
+lookupSessionCookie = do
+    mval <- fromEither <$> HA.getDataFn (HA.lookCookieValue sessionCookieKey)
+    case mval of
+        Just val -> return . Just . I.SessionCookie . I.SessionKey $ BS.pack val
+        Nothing  -> return Nothing
+    where
+      fromEither (Left _)  = Nothing
+      fromEither (Right x) = Just x
+
+hasSessionCookie :: ( Applicative m, MonadIO m, HA.FilterMonad HA.Response m
+                    , HA.HasRqData m, HA.ServerMonad m
+                    )
+                 => m Bool
+hasSessionCookie = isRight <$> HA.getDataFn (HA.lookCookieValue sessionCookieKey)
+    where
+      isRight (Right _) = True
+      isRight _         = False
 
 ------------------------------------------------------------------------------
 -- | UTILITY
 
-makeSessionKey :: (MonadIO m, FilterMonad Response m, I.HasAuthManager m)
-               => I.IdentityID m
-               -> m SessionKey
-makeSessionKey iid = do
-    rand <- liftIO $ exportSalt <$> genSaltIO
-    return $! SessionKey $! BS.pack (I.encodeIdentityID iid) ++ rand
+makeSessionKey :: (Applicative m, MonadIO m)
+               => m I.SessionKey
+makeSessionKey = I.SessionKey . PS.exportSalt <$> liftIO PS.genSaltIO
 
 
     

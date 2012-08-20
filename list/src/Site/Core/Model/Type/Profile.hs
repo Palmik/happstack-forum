@@ -1,5 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TypeFamilies       #-}
 
 module Site.Core.Model.Type.Profile
 ( Profile(..)
@@ -10,12 +11,10 @@ import           Common
 ------------------------------------------------------------------------------
 import qualified Data.SafeCopy as SC
 ------------------------------------------------------------------------------
-import           Site.Common.Model
-------------------------------------------------------------------------------
 
 data Profile = Profile
-    { profileName :: Text
-    } deriving (Eq, Ord, Typeable)
+    { profileHandle :: Text
+    } deriving (Show, Data, Eq, Ord, Typeable)
 
 $(SC.deriveSafeCopy 0 'SC.base ''Profile)
 

@@ -2,99 +2,121 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE StandaloneDeriving         #-} 
+{-# LANGUAGE FlexibleInstances          #-}
 
 module Happstack.Identity.Types
 ( HasIdentity(..)
 , HasIdentityManager(..)
 
+  -- * Credentials	
 , Credentials(..)
-, Purpose(..)
 
-  -- * Password related types and functions.
-, PasswordCredentials(..)
+  -- * Credentials : Password
+, PasswordID(..)
 
-, Password
-, PasswordHash
-
-, makePassword
-, makePasswordHash
-, verifyPassword
+  -- * Session
+, Session(..)
+, SessionKey(..)
+, SessionCookie(..)
 ) where
 
 ------------------------------------------------------------------------------
 import           Prelude
 ------------------------------------------------------------------------------
-import           Control.Applicative
+import           Control.Monad.Trans(MonadTrans(..))
 ------------------------------------------------------------------------------
 import qualified Data.ByteString as BS
 import           Data.Data
 import qualified Data.SafeCopy   as SC
-import qualified Data.Text       as TS
+import 	         Data.Int                 (Int64)
+-- import qualified Data.IxSet      as IxSet
 ------------------------------------------------------------------------------
-import qualified Crypto.PasswordStore as PS
+-- import qualified Web.Routes.RouteT as WR 
 ------------------------------------------------------------------------------
 
 class HasIdentity (m :: * -> *) where
-    type Identity   m :: *
-    type IdentityID m :: *    
+    type IdentityID m :: *
+
+instance HasIdentity m => HasIdentity (mt m) where
+    type IdentityID (mt m) = IdentityID m
 
 -- | To use the functionality provided by this package, make your application
 -- monad an instance of this class.
 class HasIdentity m => HasIdentityManager m where
-    getIdentityID :: Credentials -> Purpose -> m (Maybe (IdentityID m))
+    -- | Return ID of the identity associated with these credentials. Return Nothing
+    -- in case these credentials are not associated with any identity.
+    --
+    -- NOTE: You should not need to worry about session cookies here.
+    signinCredentials :: Credentials -> m (Maybe (IdentityID m))
 
-    encodeIdentityID :: IdentityID m -> String
-    decodeIdentityID :: String -> Maybe (IdentityID m)
+    -- | Create an identity, associate it with the given credentials and return it's ID.
+    -- Return Nothing if the given credentials are already associated with some identity.
+    --
+    -- NOTE: You should not need to worry about session cookies here.
+    signupCredentials :: Credentials -> m (Maybe (IdentityID m))
 
     -- | Creates a session on the server.
-    createSession :: I.SessionKey -> I.Session m -> m ()
+    insertSession :: SessionKey -> Session (IdentityID m) -> m ()
 
     -- | Reads a session from the server.
-    readSession :: I.SessionKey -> m (Maybe (I.Session m))
+    lookupSession :: SessionKey -> m (Maybe (Session (IdentityID m)))
 
     -- | Updates session on the server. Returns True iff session with the given key existed.
-    updateSession :: I.SessionKey -> I.Session m -> m Bool
+    -- updateSession :: SessionKey -> Session (IdentityID m) -> m Bool
 
     -- | Deletes session from the server. Returns True iff session with the given key existed.
-    deleteSession :: I.SessionKey -> m Bool
+    deleteSession :: SessionKey -> m Bool
 
-------------------------------------------------------------------------------
--- | AUTHENTICATION
+{-
+instance HasIdentityManager m => HasIdentityManager (WR.RouteT url m) where
+    signinCredentials = WR.liftRouteT . signinCredentials
+    signupCredentials = WR.liftRouteT . signupCredentials
 
-data Purpose = PurposeLogin
-             | PurposeAssociate
+    insertSession k = WR.liftRouteT . insertSession k
+    lookupSession   = WR.liftRouteT . lookupSession
+    deleteSession   = WR.liftRouteT . deleteSession 
+-}
+
+instance (Monad m, HasIdentityManager m, MonadTrans mt) => HasIdentityManager (mt m) where
+    signinCredentials = lift . signinCredentials
+    signupCredentials = lift . signupCredentials
+
+    insertSession k = lift . insertSession k
+    lookupSession   = lift . lookupSession
+    deleteSession   = lift . deleteSession
 
 ------------------------------------------------------------------------------
 -- | CREDENTIALS
 
-data Credentials = PasswordCreds PasswordCredentials deriving (Eq, Ord, Typeable)
+data Credentials = CredentialsPassword PasswordID
+    deriving (Data, Eq, Ord, Typeable, Show)
 
-------------------------------------------------------------------------------
--- | PASSWORD CREDENTIALS
-
-data PasswordCredentials = PasswordCredentials
-    { credentialsUserName     :: TS.Text
-    , credentialsPasswordHash :: PasswordHash
-    } deriving (Eq, Ord, Typeable)
+-- | Password ID.
+newtype PasswordID = PasswordID { unPasswordID :: Int64 }
+    deriving (Data, Eq, Ord, Enum, Typeable, Show)
 
 -----
 
-newtype Password = Password BS.ByteString deriving (Eq, Ord, Typeable)
-newtype PasswordHash = PasswordHash BS.ByteString deriving (Eq, Ord, Typeable)
+------------------------------------------------------------------------------
+-- | SESSION
 
--- | Wraps the bytestring in the `Password` constructor.
-makePassword :: BS.ByteString -> Password
-makePassword = Password
+newtype SessionKey = SessionKey { unSessionKey :: BS.ByteString }
+  deriving (Data, Eq, Ord, Typeable)
 
--- | Equivalent to `Crypto.PasswordStore.makePassword`
-makePasswordHash :: Password -> Int -> IO PasswordHash
-makePasswordHash (Password pass) str = PasswordHash <$> PS.makePassword pass str
+data Session a = Session
+    { sessionIdentityID :: a 
+  --  sessionExpiration :: UTCTime
+  --  ...
+    } deriving (Data, Eq, Ord, Typeable) 
 
--- | Equivalent to `Crypto.PasswordStore.verifyPassword`
-verifyPassword :: Password -> PasswordHash -> Bool
-verifyPassword (Password pass) (PasswordHash hash) = PS.verifyPassword pass hash
+------------------------------------------------------------------------------
+-- | SESSION COOKIE
 
-$(SC.deriveSafeCopy 0 'SC.base ''PasswordHash)
-$(SC.deriveSafeCopy 0 'SC.base ''PasswordCredentials)
+newtype SessionCookie = SessionCookie { unSessionCookie :: SessionKey }
+    
+$(SC.deriveSafeCopy 0 'SC.base ''PasswordID)
 $(SC.deriveSafeCopy 0 'SC.base ''Credentials)
-
+$(SC.deriveSafeCopy 0 'SC.base ''SessionKey)
+$(SC.deriveSafeCopy 0 'SC.base ''Session)
