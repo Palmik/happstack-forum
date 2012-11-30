@@ -23,6 +23,7 @@ data FormError = FECommon (F.CommonFormError [HA.Input])
                | FERequiredUnique
                | FERequiredLength Int Int
                | FENonexistentForums [TS.Text]
+               | FEWrongPassword
 
 instance F.FormError FormError where
     type ErrorInputType FormError = [HA.Input]

@@ -9,6 +9,8 @@ module Site.Common.View.Template
 , route
 , icon
 , entity
+
+, module Export
 ) where
 
 ------------------------------------------------------------------------------
@@ -28,6 +30,8 @@ import qualified Text.Blaze.Html5.Attributes as B hiding (title)
 import qualified Site.Route.Type       as I
 import qualified Site.Core.Route.Type  as IC
 import qualified Site.Forum.Route.Type as IF
+------------------------------------------------------------------------------
+import           Template.HSML as Export
 ------------------------------------------------------------------------------
 
 data DefaultTemplate = DefaultTemplate
@@ -65,8 +69,7 @@ rawDefaultTemplate signedIn DefaultTemplate{..} = do
       B.meta ! B.httpEquiv "Author"           ! B.content "Petr Pilař"
       B.meta ! B.httpEquiv "Robots"           ! B.content "index,follow"
       
-      B.link   ! B.rel "stylesheet" ! B.type_ "text/css"        ! B.href "/static/styles/bootstrap.css"
-      B.link   ! B.rel "stylesheet" ! B.type_ "text/css"        ! B.href "/static/styles/style.css"
+      B.link   ! B.rel "stylesheet" ! B.type_ "text/css" ! B.href "/static/styles/style.css"
       sequence_ templateSectionHead
 
     B.body $ do
@@ -82,25 +85,27 @@ rawDefaultTemplate signedIn DefaultTemplate{..} = do
       B.div ! B.class_ "container-fluid" $ do
         B.div ! B.class_ "row-fluid" $ do
           B.div ! B.class_ "span3" $ do
-            B.div ! B.class_ "well sidebar-nav" $ 
-              B.ul ! B.class_ "nav nav-list" $ do
-                B.li $ B.a ! B.href (route $ I.Core  IC.Home)   $ icon "home"    <> " Home"
-                B.li $ B.a ! B.href (route $ I.Forum IF.Home)   $ icon "comment" <> " Forums"
-                if signedIn
-                   then do 
-                     B.li $ B.a ! B.href (route $ I.Core IC.Signout) $ icon "off" <> " Sign out"
-                     B.li $ B.a ! B.href (route $ I.Core IC.IdentitySelfUpdate) $ icon "user" <> " Identity"
-                   else
-                     B.li $ B.a ! B.href (route $ I.Core  IC.Signin)  $ icon "off" <> " Sign in"
-
-            B.div ! B.class_ "well" $ 
-              sequence_ templateSectionL
+            B.div ! B.class_ "row-fluid" $
+              B.div ! B.class_ "well span12 nav-sidebar" $ 
+                B.ul ! B.class_ "nav nav-list" $ do
+                  B.li $ B.a ! B.href (route $ I.Core  IC.Home)   $ icon "home"    <> " Home"
+                  B.li $ B.a ! B.href (route $ I.Forum IF.Home)   $ icon "comment" <> " Forums"
+                  if signedIn
+                     then do 
+                       B.li $ B.a ! B.href (route $ I.Core IC.Signout) $ icon "off" <> " Sign out"
+                       B.li $ B.a ! B.href (route $ I.Core IC.IdentitySelfUpdate) $ icon "user" <> " Identity"
+                     else
+                       B.li $ B.a ! B.href (route $ I.Core  IC.Signin)  $ icon "off" <> " Sign in"
+          
+            B.div ! B.class_ "row-fluid" $
+              B.div ! B.class_ "well span12" $ 
+                sequence_ templateSectionL
 
           B.div ! B.class_ "span6" $ 
             sequence_ templateSectionM
 
           B.div ! B.class_ "span3" $
-            B.div ! B.class_ "well" $ 
+            B.div ! B.class_ "well span12" $ 
               sequence_ templateSectionR
 
         B.hr

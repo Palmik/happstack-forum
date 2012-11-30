@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -10,12 +11,10 @@ module Site.Forum.View.Template.Post
 ------------------------------------------------------------------------------
 import           Common
 ------------------------------------------------------------------------------
-import           Text.Blaze ((!))
-import qualified Text.Blaze.Html             as B
-import qualified Text.Blaze.Html5            as B 
-import qualified Text.Blaze.Html5.Attributes as B hiding (title)
+import qualified Text.Blaze.Html as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
+import           Site.Common.Model
 ------------------------------------------------------------------------------
 import qualified Site.Route.Type as I
 import qualified Site.Forum.Route.Type as IF
@@ -26,16 +25,22 @@ import qualified Site.Forum.View.Template.Comment as IF.Comment
 templateRead :: IF.PostEntity
              -> [IF.CommentEntity]
              -> DefaultTemplate
-templateRead (pid, IF.Post{..}) comments = def
+templateRead (pid, IF.Post IF.PostData{..} IF.PostDataExtra{..}) comments = def
     { templateTitle = postTitle
     , templateSectionM = [middle]
+    , templateSectionR = [right]
     }
     where
-      middle = do
-        B.h2 $ B.a ! B.href (route $ I.Forum $ IF.PostReadFrontPage pid) $ B.toHtml postTitle
-        B.div $ B.toHtml postContent
-        B.div $ mapM_ (IF.Comment.templateRead pid) comments
-
+      middle = [m|
+        <h2><a href={h|route $ I.Forum $ IF.PostRead pid PageFront|}>{h|postTitle|}</a></h2>
+        <div>{h|postContent|}</div>
+        <div class="comments">
+          {h| mapM_ (IF.Comment.templateRead pid) comments |}
+        </div> |]
+      right = [m|
+        <a class="btn btn-wide btn-wide" href={h|route $ I.Forum $ IF.CommentCreate pid Nothing|}>
+          Comment
+        </a> |]
 
 templateCreate :: B.Html
                -> DefaultTemplate
@@ -48,8 +53,9 @@ templateCreate view = def
 
 
 postCell :: IF.PostEntity -> B.Html
-postCell (pid, IF.Post{..}) =
-    B.tr $ B.td $ B.a ! B.href (route $ I.Forum $ IF.PostReadFrontPage pid) $ B.toHtml postTitle
-
+postCell (pid, IF.Post IF.PostData{..} IF.PostDataExtra{..}) = [m|
+  <tr>
+    <td><a href={h|route $ I.Forum $ IF.PostRead pid PageFront|}>{h|postTitle|}</a></td>
+  </tr> |]
 
 

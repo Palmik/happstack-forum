@@ -14,7 +14,7 @@ module Happstack.Identity.Types
 , Credentials(..)
 
   -- * Credentials : Password
-, PasswordID(..)
+, PasswordHandle(..)
 
   -- * Session
 , Session(..)
@@ -30,10 +30,7 @@ import           Control.Monad.Trans(MonadTrans(..))
 import qualified Data.ByteString as BS
 import           Data.Data
 import qualified Data.SafeCopy   as SC
-import 	         Data.Int                 (Int64)
--- import qualified Data.IxSet      as IxSet
-------------------------------------------------------------------------------
--- import qualified Web.Routes.RouteT as WR 
+import qualified Data.Text       as TS
 ------------------------------------------------------------------------------
 
 class HasIdentity (m :: * -> *) where
@@ -90,14 +87,12 @@ instance (Monad m, HasIdentityManager m, MonadTrans mt) => HasIdentityManager (m
 ------------------------------------------------------------------------------
 -- | CREDENTIALS
 
-data Credentials = CredentialsPassword PasswordID
+data Credentials = CredentialsPassword PasswordHandle
     deriving (Data, Eq, Ord, Typeable, Show)
 
 -- | Password ID.
-newtype PasswordID = PasswordID { unPasswordID :: Int64 }
-    deriving (Data, Eq, Ord, Enum, Typeable, Show)
-
------
+newtype PasswordHandle = PasswordHandle TS.Text
+  deriving (Data, Eq, Ord, Typeable, Show)
 
 ------------------------------------------------------------------------------
 -- | SESSION
@@ -116,7 +111,8 @@ data Session a = Session
 
 newtype SessionCookie = SessionCookie { unSessionCookie :: SessionKey }
     
-$(SC.deriveSafeCopy 0 'SC.base ''PasswordID)
+$(SC.deriveSafeCopy 0 'SC.base ''PasswordHandle)
 $(SC.deriveSafeCopy 0 'SC.base ''Credentials)
 $(SC.deriveSafeCopy 0 'SC.base ''SessionKey)
 $(SC.deriveSafeCopy 0 'SC.base ''Session)
+

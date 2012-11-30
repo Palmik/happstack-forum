@@ -13,12 +13,12 @@ import qualified Happstack.Server                 as HA
 import qualified Happstack.Identity.Auth.Password as HA
 import qualified Text.Reform.Extra                as HA (reformURL)
 ------------------------------------------------------------------------------
-import qualified Web.Routes as WR
+import qualified Web.Routes           as WR
+import qualified Web.Routes.Happstack as WR
 ------------------------------------------------------------------------------
 import qualified Text.Blaze.Html5 as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
-import           Site.Common.Controller
 ------------------------------------------------------------------------------
 import qualified Site.Core.Route.Type                    as IC
 import qualified Site.Core.Model.State                   as IC
@@ -37,5 +37,5 @@ handler = do
       , templateSectionR = ["Right Sidebar"]
       }
     where
-      handle res = uncurry HA.signin res >> seeReferrer IC.Home 
+      handle res = uncurry HA.signin res >> WR.seeOtherURL IC.Home 
 

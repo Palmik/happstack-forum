@@ -8,6 +8,8 @@
 
 module Site.Forum.Model.Type.Forum
 ( Forum(..)
+, ForumData(..)
+, ForumDataExtra(..)
 , ForumID
 , ForumEntity
 ) where
@@ -19,34 +21,46 @@ import qualified Data.IxSet     as IX
 import qualified Data.SafeCopy  as SC
 import qualified Data.Text      as TS (Text)
 ------------------------------------------------------------------------------
+import qualified Web.Routes as WR
+------------------------------------------------------------------------------
 import           Site.Common.Model
 ------------------------------------------------------------------------------
 
 type ForumEntity = (ForumID, Forum)
 
 data Forum = Forum
-    { forumParent :: Maybe ForumID
-    , forumAncestors :: [ForumID] 
-    , forumPathSegment :: PathSegment
-    , forumPath :: Path
-    , forumName :: TS.Text
-    , forumCreated :: UTCTime
+    { forumData :: ForumData
+    , forumDataExtra :: ForumDataExtra
     } deriving (Data, Eq, Ord, Typeable, Show)
 
-newtype ForumID = ForumID Int64
-      deriving (Data, Eq, Ord, Typeable, Show, SC.SafeCopy)
+data ForumData = ForumData
+    { forumParent :: Maybe ForumID
+    , forumPathSegment :: PathSegment
+    , forumTitle :: TS.Text
+    , forumDescription :: Content
+    } deriving (Data, Eq, Ord, Typeable, Show)
 
-instance AutoIncrementID ForumID where
-    nextID (ForumID n) = ForumID $! n +1
-    initID             = ForumID 1
+data ForumDataExtra = ForumDataExtra
+    { forumCreated :: UTCTime
+    , forumAncestors :: [ForumID]
+    , forumPath :: Path
+    } deriving (Data, Eq, Ord, Typeable, Show)
+
+newtype ForumID = ForumID Natural 
+    deriving (Data, Eq, Ord, Typeable, Show, SC.SafeCopy, WR.PathInfo, AutoIncrementID)
 
 instance IX.Indexable (ForumID, Forum) where
     empty = IX.ixSet
-      [ IX.ixFun $ \e -> [ fst e ] -- ^ The Forum's primary key (aka ForumID)
-      , IX.ixFun $ \e -> [ forumParent $ snd e ] -- ^ The Forum's direct ancestor (aka Parent)
-      , IX.ixFun $ \e -> [ map Ancestor $ forumAncestors $ snd e ] -- ^ The Forum's ancestors (including Parent)
-      , IX.ixFun $ \e -> [ forumPathSegment $ snd e ] -- ^ The Forum's path segment
-      , IX.ixFun $ \e -> [ forumPath $ snd e ] -- ^ The full Forum's path (concatenated path piece with ancestors' path pieces)
+      [ IX.ixFun $ \e -> [ fst e ]
+
+      , IX.ixFun $ \e -> [ Parent . forumParent . forumData $ snd e ]
+      , IX.ixFun $ \e -> [ forumPathSegment . forumData $ snd e ]
+      
+      , IX.ixFun $ \e -> [ map Ancestor . forumAncestors . forumDataExtra $ snd e ]
+      , IX.ixFun $ \e -> [ forumPath . forumDataExtra $ snd e ]
       ] 
 
+$(SC.deriveSafeCopy 0 'SC.base ''ForumData)
+$(SC.deriveSafeCopy 0 'SC.base ''ForumDataExtra)
 $(SC.deriveSafeCopy 0 'SC.base ''Forum)
+

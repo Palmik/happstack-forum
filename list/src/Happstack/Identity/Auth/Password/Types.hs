@@ -10,9 +10,9 @@ module Happstack.Identity.Auth.Password.Types
   -- * Convenience wrappers
 , Password
 , PasswordSaltedHash
-, PasswordHandle(..)
 , makePassword
 , makePasswordSaltedHash
+, makePasswordBundle
 , verifyPassword
 ) where
 
@@ -24,7 +24,6 @@ import		       Control.Monad.Trans (MonadTrans(..), MonadIO(..))
 ------------------------------------------------------------------------------
 import		       Data.Data
 import qualified Data.SafeCopy   as SC
-import qualified Data.Text       as TS
 import qualified Data.ByteString as BS
 import           Data.IxSet            (Indexable(..), ixSet, ixFun)
 ------------------------------------------------------------------------------
@@ -34,30 +33,45 @@ import qualified Happstack.Identity.Types as I
 ------------------------------------------------------------------------------
 
 class I.HasIdentityManager m => HasPasswordManager m where
-    insertPasswordBundle :: PasswordBundle -> m (Maybe I.PasswordID) 
-    lookupPassword :: PasswordHandle -> m (Maybe (I.PasswordID, PasswordSaltedHash))     
+    -- | Insert the given password bundle. If there already exists a bundle
+    -- with the given username, it's no-op and returns False, otherwise returns True.
+    insertPasswordBundle :: PasswordBundle -> m Bool 
+    
+    -- | Update the given password bundle. If there is no bundle with such
+    -- handle already, it's no-op and returns False, othwerise returns True.
+    updatePasswordBundle :: PasswordBundle -> m Bool 
+    
+    -- | Deletes bundle associated with the given handle. If there is no bundle with such
+    -- handle, it's no-op and returns False, othwerise returns True.
+    deletePasswordBundle :: I.PasswordHandle -> m Bool 
+    
+    lookupPassword :: I.PasswordHandle -> m (Maybe PasswordSaltedHash)     
 
 instance (Monad m, HasPasswordManager m, MonadTrans mt) => HasPasswordManager (mt m) where
     insertPasswordBundle = lift . insertPasswordBundle
+    updatePasswordBundle = lift . updatePasswordBundle
+    deletePasswordBundle = lift . deletePasswordBundle
     lookupPassword = lift . lookupPassword
 
 data PasswordBundle = PasswordBundle
-    { passwordHandle     :: PasswordHandle
+    { passwordHandle     :: I.PasswordHandle
     , passwordSaltedHash :: PasswordSaltedHash
     } deriving (Eq, Ord, Typeable)
 
-instance Indexable (I.PasswordID, PasswordBundle) where
+instance Indexable PasswordBundle where
     empty = ixSet
-      [ ixFun $ \e -> [ fst e ]
-      , ixFun $ \e -> [ passwordHandle $ snd e ]
+      [ ixFun $ \e -> [ passwordHandle e ]
       ]
 
 ------------------------------------------------------------------------------
 -- | CONVENIENCE FUNCTIONS AND TYPES (simple wrappers)
 
-newtype PasswordHandle = PasswordHandle TS.Text
-  deriving (Eq, Ord, Typeable)
-  
+makePasswordBundle :: (Applicative m, MonadIO m)
+		               => I.PasswordHandle 
+		               -> Password 
+                   -> m PasswordBundle 
+makePasswordBundle name pass = PasswordBundle name <$> makePasswordSaltedHash pass 14
+
 newtype Password = Password BS.ByteString
   deriving (Eq, Ord, Typeable)
   
@@ -80,6 +94,5 @@ verifyPassword :: Password -> PasswordSaltedHash -> Bool
 verifyPassword (Password pass) (PasswordSaltedHash hash) = PS.verifyPassword pass hash
 
 $(SC.deriveSafeCopy 0 'SC.base ''PasswordSaltedHash)
-$(SC.deriveSafeCopy 0 'SC.base ''PasswordHandle)
 $(SC.deriveSafeCopy 0 'SC.base ''PasswordBundle)
  

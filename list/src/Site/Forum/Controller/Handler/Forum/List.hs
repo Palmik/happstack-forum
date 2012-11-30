@@ -23,6 +23,6 @@ handler :: IF.HasForum m
         -> WR.RouteT IF.Route m HA.Response
 handler p = do
     flist <- IF.Forum.getListPageByCreation p Increasing
-    HA.ok =<< HA.toResponse <$> defaultTemplate (IF.Forum.templateList flist) 
+    HA.ok =<< HA.toResponse <$> defaultTemplate (IF.Forum.templateListRead flist) 
 
 

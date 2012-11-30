@@ -1,63 +1,64 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE FlexibleContexts  #-}
 
-module Site.Core.Model.ACID.Credentials
-( signinCredentials
-, signupCredentials
-, SigninCredentials(..)
-, SignupCredentials(..)
+module Site.Core.Model.Credentials
+( signin
+, signup
+, lookupByID
+, lookupByIdentityID
+, delete 
 
-, events
-
-, module Export
 ) where
 
 ------------------------------------------------------------------------------
 import           Common
 ------------------------------------------------------------------------------
 import           Control.Monad.Reader 
-import           Control.Monad.State
 ------------------------------------------------------------------------------
-import qualified Data.Acid     as AS
-import           Data.IxSet 
+import qualified Happstack.Identity               as HA
+import qualified Happstack.Identity.Auth.Password as HA (HasPasswordManager(..))
+import qualified Happstack.State                  as HA
 ------------------------------------------------------------------------------
-import qualified Happstack.Identity.Types as HA
-------------------------------------------------------------------------------
-import           Site.Common.Model
-import qualified Site.Core.Model.Type          as IC
-import qualified Site.Core.Model.ACID.Identity as IC.Identity
-import qualified Site.Core.Model.State         as IC
-------------------------------------------------------------------------------
-import           Site.Core.Model.Type.Credentials as Export
+import qualified Site.Core.Model.State            as IC
+import qualified Site.Core.Model.Type             as IC
+import qualified Site.Core.Model.ACID.Credentials as IC.Credentials
 ------------------------------------------------------------------------------
 
-------------------------------------------------------------------------------
--- CREDENTIALS MANAGER IMPLEMENTATION USING ACID STATE
+signin :: (Functor m, MonadIO m, HA.HasAcidState m IC.CoreState)
+       => HA.Credentials
+       -> m (Maybe IC.IdentityID)
+signin = HA.query . IC.Credentials.Signin
+{-# INLINE signin #-}
 
-signinCredentials :: HA.Credentials
-                  -> AS.Query IC.CoreState (Maybe IC.IdentityID) 
-signinCredentials crd = do
-    IC.CoreState{..} <- ask 
-    return $! IC.credentialsIdentityID . snd <$> getOne (stCredentialsDB @= crd)    
+signup :: (Functor m, MonadIO m, HA.HasAcidState m IC.CoreState)
+       => HA.Credentials
+       -> m (Maybe IC.IdentityID)
+signup = HA.update . IC.Credentials.Signup
+{-# INLINE signup #-}
 
+lookupByID :: (Functor m, MonadIO m, HA.HasAcidState m IC.CoreState)
+           => IC.CredentialsID
+           -> m (Maybe IC.Credentials)
+lookupByID = HA.query . IC.Credentials.LookupByID
+{-# INLINE lookupByID #-}
 
-signupCredentials :: HA.Credentials
-                  -> AS.Update IC.CoreState (Maybe IC.IdentityID) 
-signupCredentials crd = do
-    st@IC.CoreState{..} <- get 
-    if isNothing $ getOne $ stCredentialsDB @= crd    
-       then do
-         iid <- IC.Identity.insert IC.newIdentity
-         put st { IC.stCredentialsDB = insert (stNextCredentialsID, IC.Credentials iid crd) stCredentialsDB
-                , IC.stNextCredentialsID = nextID stNextCredentialsID
-                }
-         return $ Just iid
-       else return Nothing  
+lookupByIdentityID :: (Functor m, MonadIO m, HA.HasAcidState m IC.CoreState)
+                   => IC.IdentityID
+                   -> m [(IC.CredentialsID, HA.Credentials)]
+lookupByIdentityID = HA.query . IC.Credentials.LookupByIdentityID 
+{-# INLINE lookupByIdentityID #-}
 
-$(AS.makeEvents "events" ''IC.CoreState [ 'signinCredentials
-                                        , 'signupCredentials
-                                        ])
-
+delete :: (Functor m, MonadIO m, HA.HasAcidState m IC.CoreState, HA.HasPasswordManager m)
+       => IC.CredentialsID
+       -> m Bool
+delete cid = do
+    mres <- lookupByID cid
+    case mres of
+        Just (IC.Credentials iid (HA.CredentialsPassword handle)) -> do
+          success <- HA.deletePasswordBundle handle
+          if success
+             then HA.update (IC.Credentials.Delete cid) >> return True
+             else return False
+        Nothing -> return False
 

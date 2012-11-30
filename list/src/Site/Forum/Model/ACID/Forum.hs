@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeFamilies       #-}
@@ -5,16 +6,22 @@
 
 module Site.Forum.Model.ACID.Forum
 ( insert
-, lookupByID
-, lookupByPath
-, getPageByCreation
-
 , Insert(..)
+, insertRaw
+, InsertRaw(..)
+, lookupByID
 , LookupByID(..)
+, lookupByPath
 , LookupByPath(..)
+, getPageByCreation
 , GetPageByCreation(..)
+, getListPageByCreation
 , GetListPageByCreation(..)
+, isUnique
 , IsUnique(..)
+
+, ForumDataIO(..)
+
 
 , events
 ) where
@@ -25,30 +32,91 @@ import           Common
 import           Control.Monad.State
 import           Control.Monad.Reader
 ------------------------------------------------------------------------------
-import qualified Data.Acid  as AS
-import qualified Data.IxSet as IX  
-import           Data.IxSet       ((@=))
+import qualified Data.SafeCopy as SC
+import qualified Data.Acid     as AS
+import qualified Data.IxSet    as IX  
+import           Data.IxSet          ((@=))
 ------------------------------------------------------------------------------
 import           Site.Common.Model
 import qualified Site.Forum.Model.Type  as IF
 ------------------------------------------------------------------------------
 
-insert :: IF.Forum -- ^ The forum itself (note that the forumPath field is ignored and is generated from forumPathPiece and forumParent)
-       -> AS.Update IF.ForumState (Maybe IF.ForumID) -- ^ Returns Nothing in case the parent did not exist.
-insert forum = do
-    unique <- AS.runQuery $ isUnique forum 
+data ForumDataIO = ForumDataIO
+    { ioforumCreated :: UTCTime
+    } deriving (Data, Eq, Ord, Typeable)
+$(SC.deriveSafeCopy 0 'SC.base ''ForumDataIO) 
+
+makeComplete :: ForumDataIO
+             -> IF.ForumData
+             -> AS.Query IF.ForumState (Maybe IF.Forum)
+makeComplete ForumDataIO{..} fdata@IF.ForumData{..} =
+    -- ^ We check whether this form is 'top-level'
+    case forumParent of
+        -- ^ It has a parent.
+        Just par -> do
+          -- ^ But does it actually exist?
+          mres <- fmap IF.forumDataExtra <$> lookupByID par
+          case mres of
+              Just pextra -> return $! Just $! fromParentExtra pextra
+              Nothing     -> return Nothing
+        -- ^ It does not have a parent.
+        Nothing -> return $! Just IF.Forum
+          { IF.forumData = fdata
+          , IF.forumDataExtra = IF.ForumDataExtra
+              { IF.forumCreated = ioforumCreated    
+              , IF.forumPath = Path [forumPathSegment]
+              , IF.forumAncestors = []
+              }
+          }
+    where
+      -- | In this function, we have got the extra data of the parent
+      -- forum.
+      fromParentExtra IF.ForumDataExtra{..} = IF.Forum
+        { IF.forumData = fdata
+        , IF.forumDataExtra = IF.ForumDataExtra
+            { IF.forumCreated = ioforumCreated
+            , IF.forumPath = Path $ forumPathSegment : unPath forumPath
+            , IF.forumAncestors = fromJust forumParent : forumAncestors -- ^ We can safely fromJust here, since we know the parent exists.
+            }
+        }
+
+-- | Returns False if forum with such parent and path segment exists,
+-- otherwise returns True.
+isUnique :: IF.ForumData
+         -> AS.Query IF.ForumState Bool
+isUnique IF.ForumData{..} = do
+    db <- asks IF.stForumDB
+    return $ isNothing $ IX.getOne ((db @= Parent forumParent) @= forumPathSegment)
+{-# INLINE isUnique #-}
+
+-- | Given the IO data (that we can not generate ourselves here) and given
+-- the forum data, we check all neccessary things (uniqueness, etc.) and
+-- if all goes well, we generated the whole forum and insert it.
+insert :: ForumDataIO
+       -> IF.ForumData
+       -> AS.Update IF.ForumState (Maybe (IF.ForumID, IF.ForumDataExtra)) -- ^ Returns Nothing in case the parent did not exist.
+insert fdataio fdata = do
+    -- ^ Would it be unique?
+    unique <- AS.runQuery $ isUnique fdata
     if unique
        then do
-          mres <- AS.runQuery $ constructFromAncestors forum
-          case mres of
-              Just res -> do
-                st@IF.ForumState{..} <- get
-                put st { IF.stNextForumID = nextID stNextForumID
-                       , IF.stForumDB = IX.insert (stNextForumID, res) stForumDB
-                       }
-                return $ Just stNextForumID
-              Nothing  -> return Nothing
+          mforum <- AS.runQuery $ makeComplete fdataio fdata 
+          case mforum of
+              Just forum@(IF.Forum _ extra) -> Just . (\fid -> (fid, extra)) <$> insertRaw forum 
+              Nothing -> return Nothing
       else return Nothing
+
+-- | Given a forum, we just insert it -- no checks nor changes to the forum
+-- are performed.
+insertRaw :: IF.Forum
+          -> AS.Update IF.ForumState IF.ForumID
+insertRaw forum = do
+    st@IF.ForumState{..} <- get
+    put st { IF.stNextForumID = nextID stNextForumID
+           , IF.stForumDB = IX.insert (stNextForumID, forum) stForumDB
+           }
+    return stNextForumID
+{-# INLINE insertRaw #-}
 
 lookupByID :: IF.ForumID -> AS.Query IF.ForumState (Maybe IF.Forum)
 lookupByID fid = do 
@@ -69,40 +137,9 @@ getListPageByCreation :: Page -> Order -> AS.Query IF.ForumState [IF.ForumEntity
 getListPageByCreation p o =
     getPage (IX.Proxy :: IX.Proxy IF.ForumID) p o <$> asks IF.stForumDB
 
-------------------------------------------------------------------------------
--- CONVENIENCE FUNCTIONS
-
--- | Given a Forum, this functions attempts to 'fix' its
--- forumAncestor and forumPath, if the forumParent des not exist, 
--- return Nothing.
-constructFromAncestors :: IF.Forum -> AS.Query IF.ForumState (Maybe IF.Forum)
-constructFromAncestors forum =
-    case IF.forumParent forum of
-        Just par -> do
-          mres <- fmap (IF.forumAncestors &&& IF.forumPath) <$> lookupByID par
-          case mres of
-            Just (pa, pp) -> return $ Just $ consRes par pa pp
-            Nothing       -> return Nothing 
-        Nothing  -> return $ Just $ forum
-          { IF.forumAncestors = []
-          , IF.forumPath      = Path [ IF.forumPathSegment forum ]
-          }
-    where
-      consRes par pa (Path pp) = forum
-          { IF.forumAncestors = par : pa
-          , IF.forumPath = Path $ IF.forumPathSegment forum : pp
-          }
-
--- | Returns False if forum with such parent and path segment exists,
--- otherwise returns True.
-isUnique :: IF.Forum
-         -> AS.Query IF.ForumState Bool
-isUnique forum = do
-    db <- asks IF.stForumDB
-    return $ isNothing $ IX.getOne ((db @= IF.forumParent forum) @= IF.forumPathSegment forum)
-{-# INLINE isUnique #-}
 
 $(AS.makeEvents "events" ''IF.ForumState [ 'insert
+                                         , 'insertRaw
                                          , 'lookupByID
                                          , 'lookupByPath
                                          , 'getPageByCreation

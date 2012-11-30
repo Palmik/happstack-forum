@@ -24,6 +24,7 @@ import qualified Data.SafeCopy      as SC
 import qualified Happstack.Server                 as HA
 import qualified Happstack.State                  as HA
 import qualified Happstack.Identity               as HA
+import qualified Happstack.Identity.Auth.Password as HA
 ------------------------------------------------------------------------------
 import qualified Web.Routes           as WR
 import qualified Web.Routes.Happstack as WR ()

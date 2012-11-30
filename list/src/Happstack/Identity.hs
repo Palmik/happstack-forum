@@ -20,7 +20,6 @@ import qualified Happstack.Identity.Auth.Session as I
 ------------------------------------------------------------------------------
 import           Happstack.Identity.Types         as Export
 import           Happstack.Identity.Auth.Session  as Export
-import           Happstack.Identity.Auth.Password as Export
 ------------------------------------------------------------------------------
 
 signout :: ( Applicative m, MonadIO m
@@ -32,7 +31,7 @@ signout = do
     mcookie <- I.lookupSessionCookie
     case mcookie of
         Just (I.SessionCookie skey) -> do
-          I.deleteSession skey
+          _ <- I.deleteSession skey
           I.deleteSessionCookie
         Nothing -> return ()
 

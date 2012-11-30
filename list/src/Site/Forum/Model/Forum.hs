@@ -3,6 +3,7 @@
 
 module Site.Forum.Model.Forum
 ( insert
+, insertRaw
 , lookupByID
 , lookupByPath
 , getPageByCreation
@@ -24,10 +25,18 @@ import qualified Site.Forum.Model.ACID.Forum as IF.Forum
 ------------------------------------------------------------------------------
 
 insert :: (Functor m, MonadIO m, HA.HasAcidState m IF.ForumState) 
-       => IF.Forum
-       -> m (Maybe IF.ForumID)
-insert = HA.update . IF.Forum.Insert
+       => IF.ForumData
+       -> m (Maybe (IF.ForumID, IF.ForumDataExtra))
+insert fdata = do
+    fdataio <- makeDataIO fdata
+    HA.update $ IF.Forum.Insert fdataio fdata
 {-# INLINE insert #-}
+
+insertRaw :: (Functor m, MonadIO m, HA.HasAcidState m IF.ForumState)
+          => IF.Forum
+          -> m IF.ForumID
+insertRaw = HA.update . IF.Forum.InsertRaw
+{-# INLINE insertRaw #-}
 
 lookupByID :: (Functor m, MonadIO m, HA.HasAcidState m IF.ForumState) 
            => IF.ForumID
@@ -57,8 +66,16 @@ getListPageByCreation p = HA.query . IF.Forum.GetListPageByCreation p
 {-# INLINE getListPageByCreation #-}
 
 isUnique :: (Functor m, MonadIO m, HA.HasAcidState m IF.ForumState)
-         => IF.Forum
+         => IF.ForumData
          -> m Bool
 isUnique = HA.query . IF.Forum.IsUnique
 {-# INLINE isUnique #-}
+
+makeDataIO :: MonadIO m => IF.ForumData -> m IF.Forum.ForumDataIO
+makeDataIO _ = do
+    time <- liftIO getCurrentTime
+    return IF.Forum.ForumDataIO
+      { IF.Forum.ioforumCreated = time
+      }
+{-# INLINE makeDataIO #-}
 

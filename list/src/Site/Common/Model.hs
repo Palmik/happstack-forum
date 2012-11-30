@@ -21,7 +21,6 @@ module Site.Common.Model
 , PathSegment(..)
 , textToPath
 , pathToText
-, rootPath
 
 , Natural(..)
 , Parent(..)
@@ -42,9 +41,13 @@ import qualified Data.Text.Read as TS
 import qualified Web.Routes as WR
 import qualified Text.ParserCombinators.Parsec.Combinator as P (notFollowedBy)
 ------------------------------------------------------------------------------
+import           Site.Common.Model.Content as Export
 import           Data.Time as Export
 ------------------------------------------------------------------------------
 
+-- | Only matches if all segments have been consumed
+eof :: WR.URLParser ()
+eof = P.notFollowedBy WR.anySegment
 ------------------------------------------------------------------------------
 -- ENTITY FRAMEWORK
 
@@ -69,17 +72,21 @@ class AutoIncrementID a where
 data Page = Page
    { pageNumber :: Int
    , pageSize :: Int
-   }
+   } | PageFront
 $(SC.deriveSafeCopy 0 'SC.base ''Page)
 
 instance WR.PathInfo Page where
     toPathSegments (Page pn ps) = [TS.pack (show pn <> "-" <> show ps)] 
-    fromPathSegments = do
-        res <- map TS.decimal . TS.split (== '-') <$> WR.anySegment
-        case res of
-            [Right (pn, "")] -> return $ Page pn 30
-            [Right (pn, ""), Right (ps, "")] -> return $ Page pn ps  
-            _ -> fail "Page number and page size expected."
+    toPathSegments PageFront = []
+    fromPathSegments = pageFront <|> pageNormal
+        where
+          pageFront  = eof >> return PageFront
+          pageNormal = do
+            res <- map TS.decimal . TS.split (== '-') <$> WR.anySegment
+            case res of
+                [Right (pn, "")] -> return $ Page pn 30
+                [Right (pn, ""), Right (ps, "")] -> return $ Page pn ps  
+                _ -> fail "Page number and page size expected."
 
 data Order = Increasing
            | Decreasing
@@ -92,6 +99,7 @@ getPage :: forall k a . (IX.Indexable a, Typeable a, Typeable k)
         -> Order
         -> IX.IxSet a
         -> [a]
+getPage proxy PageFront ord = getPage proxy (Page 1 30) ord
 getPage proxy (Page pn ps) ord =
     case ord of
          Increasing -> take ps . drop ((pn - 1) * ps) . IX.toAscList proxy
@@ -125,22 +133,24 @@ instance AutoIncrementID Natural where
 newtype PathSegment = PathSegment { unPathSegment :: TS.Text }
     deriving (Data, Eq, Ord, Typeable, SC.SafeCopy, Show)
 
-newtype Path = Path { unPath :: [PathSegment] }
-    deriving (Data, Eq, Ord, Typeable, SC.SafeCopy)
+data Path = Path { unPath :: [PathSegment] } | PathRoot
+    deriving (Data, Eq, Ord, Typeable)
+$(SC.deriveSafeCopy 0 'SC.base ''Path)
 
 instance Show Path where
     show = TS.unpack . TS.intercalate "-" . map unPathSegment . unPath
 
 instance WR.PathInfo Path where
-    toPathSegments p = [ TS.intercalate "-" . map unPathSegment . reverse $ unPath p ]
-    fromPathSegments = do
-        res <- TS.split (== '-') <$> WR.anySegment
-        if any TS.null res
-           then fail "Empty path piece"
-           else return $ Path $ reverse $ map PathSegment res
-
-rootPath :: Path
-rootPath = Path []
+    toPathSegments PathRoot = []
+    toPathSegments (Path p) = [ TS.intercalate "-" . map unPathSegment $ reverse p ]
+    fromPathSegments = pathRoot <|> pathNormal
+        where
+          pathRoot = eof >> return PathRoot
+          pathNormal = do
+            res <- TS.split (== '-') <$> WR.anySegment
+            if any TS.null res
+               then fail "Empty path piece"
+               else return $ Path $ reverse $ map PathSegment res
 
 textToPath :: TS.Text -> Maybe Path
 textToPath = tr . WR.parseSegments WR.fromPathSegments . (:[])
@@ -158,9 +168,6 @@ instance WR.PathInfo a => WR.PathInfo (Maybe a) where
         (eof >> return Nothing) <|>
         (Just <$> WR.fromPathSegments)
 
--- | Only matches if all segments have been consumed
-eof :: WR.URLParser ()
-eof = P.notFollowedBy WR.anySegment
 
 ------------------------------------------------------------------------------
 -- Generic

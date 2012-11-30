@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -7,14 +8,16 @@
 module Happstack.Identity.Auth.Password.Default
 ( PasswordManager(..)
 , initPasswordManager
+
 , InsertPasswordBundle(..)
-, LookupPassword(..) 
+, UpdatePasswordBundle(..)
+, DeletePasswordBundle(..)
+, LookupPassword(..)
 ) where
 
 ------------------------------------------------------------------------------
 import           Prelude
 ------------------------------------------------------------------------------
-import           Control.Arrow (second)
 import	      	 Control.Applicative
 import           Control.Monad.Reader (asks)
 import           Control.Monad.State  (get, put)
@@ -23,7 +26,7 @@ import qualified Data.Acid       as AS
 import	      	 Data.Data
 import           Data.Maybe
 import qualified Data.SafeCopy   as SC
-import           Data.IxSet               (IxSet, getOne, (@=), insert)
+import           Data.IxSet               (IxSet, getOne, (@=), insert, updateIx, deleteIx)
 import qualified Data.IxSet      as IxSet
 ------------------------------------------------------------------------------
 import qualified Happstack.Identity.Types               as I
@@ -32,13 +35,11 @@ import qualified Happstack.Identity.Auth.Password.Types as I
 
 initPasswordManager :: PasswordManager
 initPasswordManager = PasswordManager
-    { nextPasswordID = toEnum 1
-    , passwordStore  = IxSet.empty
+    { passwordStore  = IxSet.empty
     }
 
-data PasswordManager = PasswordManager
-    { nextPasswordID :: I.PasswordID
-    , passwordStore  :: IxSet (I.PasswordID, I.PasswordBundle)
+newtype PasswordManager = PasswordManager
+    { passwordStore  :: IxSet I.PasswordBundle
     } deriving (Eq, Ord, Typeable)
 $(SC.deriveSafeCopy 0 'SC.base ''PasswordManager)
 
@@ -46,27 +47,51 @@ $(SC.deriveSafeCopy 0 'SC.base ''PasswordManager)
 -- | PASSWORD STORE MANAGER IMPLEMENTATION BASED ON ACID-STATE
 
 -- | Insert the given password bundle. If there already exists a bundle
--- with the given username, it does not insert it and returns Nothing.
+-- with the given username, it's no-op and returns False, otherwise returns True.
 insertPasswordBundle :: I.PasswordBundle
-                     -> AS.Update PasswordManager (Maybe I.PasswordID)
-insertPasswordBundle bundle@(I.PasswordBundle name _) = do
-    state@PasswordManager{..} <- get 
-    if isNothing $ getOne (passwordStore @= name)
+                     -> AS.Update PasswordManager Bool 
+insertPasswordBundle bundle@(I.PasswordBundle handle _) = do
+    st@PasswordManager{..} <- get 
+    if isNothing $ getOne (passwordStore @= handle)
        then do
-         put state { nextPasswordID = succ nextPasswordID  
-                   , passwordStore  = insert (nextPasswordID, bundle) passwordStore
-                   }
-         return $! Just nextPasswordID
-       else return Nothing
+         put st { passwordStore  = insert bundle passwordStore }
+         return True
+       else return False
+
+-- | Update the given password bundle. If there is no bundle with such
+-- handle already, it's no-op and returns False, othwerise returns True.
+updatePasswordBundle :: I.PasswordBundle 
+                     -> AS.Update PasswordManager Bool
+updatePasswordBundle bundle@(I.PasswordBundle handle _) = do
+    st@PasswordManager{..} <- get
+    if isJust $ getOne (passwordStore @= handle)
+        then do
+          put st { passwordStore = updateIx handle bundle passwordStore }
+          return True 
+        else return False
+
+-- | Deletes bundle associated with the given handle. If there is no bundle with such
+-- handle, it's no-op and returns False, othwerise returns True.
+deletePasswordBundle :: I.PasswordHandle
+                     -> AS.Update PasswordManager Bool
+deletePasswordBundle handle = do
+    st@PasswordManager{..} <- get
+    if isJust $ getOne (passwordStore @= handle)
+        then do
+          put st { passwordStore = deleteIx handle passwordStore }
+          return True 
+        else return False
+
 
 lookupPassword :: I.PasswordHandle
-               -> AS.Query PasswordManager (Maybe (I.PasswordID, I.PasswordSaltedHash))
-lookupPassword name = do
-    store <- asks passwordStore
-    return $! second I.passwordSaltedHash <$> getOne (store @= name)
-
+               -> AS.Query PasswordManager (Maybe I.PasswordSaltedHash)
+lookupPassword handle = do
+    db <- asks passwordStore
+    return $! I.passwordSaltedHash <$> getOne (db @= handle)
 
 $(AS.makeAcidic ''PasswordManager [ 'insertPasswordBundle
+                                  , 'updatePasswordBundle
+                                  , 'deletePasswordBundle
                                   , 'lookupPassword
                                   ])
 

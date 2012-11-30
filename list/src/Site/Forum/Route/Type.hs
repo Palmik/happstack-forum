@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Site.Forum.Route.Type
 ( Route(..)
@@ -16,14 +17,14 @@ import qualified Site.Forum.Model.Type.Comment as IF
 ------------------------------------------------------------------------------
 
 data Route = Home
-           | ForumListPage Page
-           | ForumListFrontPage
-           | ForumReadPage      Path Page
-           | ForumReadFrontPage Path
-           | ForumCreate    
-           | ForumCreateSub Path
-           | PostReadFrontPage IF.PostID 
+           | ForumListRead Page
+           
+           | ForumRead Path Page
+           | ForumCreate Path
+
+           | PostRead IF.PostID Page
            | PostCreate
+
            | CommentCreate IF.PostID (Maybe IF.CommentID)
 
 $(WR.derivePathInfo ''Route)

@@ -19,6 +19,7 @@ import qualified Site.Core.Controller.Handler.Signup  as IC.Signup
 import qualified Site.Core.Controller.Handler.Signout as IC.Signout
 import qualified Site.Core.Controller.Handler.Identity.Read as IC.Identity.Read
 import qualified Site.Core.Controller.Handler.Identity.Self.Update as IC.Identity.Self.Update
+import qualified Site.Core.Controller.Handler.Credentials as IC.Credentials
 ------------------------------------------------------------------------------
 
 router :: IC.HasCore m
@@ -29,3 +30,4 @@ router (IC.Signup)  = IC.Signup.handler
 router (IC.Signout) = IC.Signout.handler
 router (IC.IdentityRead iid) = IC.Identity.Read.handler iid
 router (IC.IdentitySelfUpdate) = IC.Identity.Self.Update.handler
+router (IC.CredentialsUpdate cid) = IC.Credentials.handlerUpdate cid

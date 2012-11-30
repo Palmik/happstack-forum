@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -6,6 +7,8 @@
 
 module Site.Forum.Model.Type.Post
 ( Post(..)
+, PostData(..)
+, PostDataExtra(..)
 , PostID
 , PostEntity
 ) where
@@ -25,24 +28,36 @@ import qualified Site.Core.Model.Type.Identity as IC
 import qualified Site.Forum.Model.Type.Forum   as IF
 ------------------------------------------------------------------------------
 
+type PostEntity = (PostID, Post)
+
 data Post = Post
+    { postData :: PostData
+    , postDataExtra :: PostDataExtra
+    } deriving (Data, Eq, Ord, Typeable, Show)
+
+data PostData = PostData
     { postAuthor :: Maybe IC.IdentityID
     , postTitle :: TS.Text
     , postForums :: [IF.ForumID]
-    , postContent :: TS.Text
-    , postCreated :: UTCTime
+    , postContent :: Content 
     } deriving (Data, Eq, Ord, Typeable, Show)
-$(SC.deriveSafeCopy 0 'SC.base ''Post)
+
+data PostDataExtra = PostDataExtra
+    { postCreated :: UTCTime
+    } deriving (Data, Eq, Ord, Typeable, Show)
 
 newtype PostID = PostID Natural 
-    deriving (Data, Eq, Ord, Typeable, SC.SafeCopy, WR.PathInfo, AutoIncrementID)
-
-type PostEntity = (PostID, Post)
+    deriving (Data, Eq, Ord, Typeable, Show, SC.SafeCopy, WR.PathInfo, AutoIncrementID)
 
 instance IX.Indexable (PostID, Post) where
     empty = IX.ixSet
       [ IX.ixFun $ \e -> [ key e ] -- ^ The Post's primary ID.
-      , IX.ixFun $ \e -> postForums $ value e -- ^ The Forum IDs where the Post is displayed.
-      , IX.ixFun $ \e -> [ postTitle $ value e ] -- ^ The Post's title.
+      , IX.ixFun $ \e -> postForums . postData $ value e -- ^ The Forum IDs where the Post is displayed.
+      , IX.ixFun $ \e -> [ postTitle . postData $ value e ] -- ^ The Post's title.
       ] 
+
+$(SC.deriveSafeCopy 0 'SC.base ''PostData)
+$(SC.deriveSafeCopy 0 'SC.base ''PostDataExtra)
+$(SC.deriveSafeCopy 0 'SC.base ''Post)
+
 

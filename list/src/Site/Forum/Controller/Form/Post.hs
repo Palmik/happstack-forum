@@ -15,7 +15,8 @@ import           Text.Reform                  ((<++), (++>))
 import qualified Text.Reform.Blaze.Text as HA
 import qualified Text.Blaze.Html as B (Html)
 ------------------------------------------------------------------------------
-import qualified Data.Text as TS 
+import qualified Data.Text      as TS 
+import qualified Data.Text.Lazy as TL 
 ------------------------------------------------------------------------------
 import           Site.Common.Model
 import           Site.Common.Controller.Form
@@ -27,9 +28,8 @@ import qualified Site.Forum.Model.Forum as IF.Forum
 
 formCreate :: (Functor m, MonadIO m, IF.HasForum m)
            => Maybe IC.IdentityID
-           -> UTCTime
-           -> Form m B.Html () IF.Post
-formCreate mauthor time = construct
+           -> Form m B.Html () IF.PostData
+formCreate mauthor = construct
     <$> HA.label ("Title: " :: String)
         ++> postTitle
         <++ HA.br
@@ -44,19 +44,19 @@ formCreate mauthor time = construct
         <++ HA.br
     <* HA.inputSubmit "Create Post"
     where
-      construct title content forums anon = IF.Post 
-        { IF.postAuthor = if anon then Nothing else mauthor
-        , IF.postTitle = title
-        , IF.postContent = content
-        , IF.postForums = forums
-        , IF.postCreated = time
+      construct t c f a = IF.PostData 
+        { IF.postAuthor = if a then Nothing else mauthor
+        , IF.postTitle = t
+        , IF.postContent = c
+        , IF.postForums = f
         }
 
 postContent :: (Functor m, Monad m)
-            => Form m B.Html () TS.Text
-postContent =
-    HA.checkBool (\x -> let l = TS.length x in l >= 10 && l <= 20000) (FERequiredLength 10 20000) $
-    HA.textarea 80 40 "" 
+            => Form m B.Html () Content
+postContent = content . TL.fromChunks . (:[]) <$>
+    HA.checkBool (\x -> let l = TS.length x in l >= 10 && l <= 20000) (FERequiredLength 10 20000) (
+    HA.textarea 80 10 "" 
+    )
 
 postTitle :: (Functor m, Monad m)
           => Form m B.Html () TS.Text

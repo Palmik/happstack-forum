@@ -18,6 +18,7 @@ import           Control.Monad.Reader
 import qualified Happstack.Server   as HA
 import qualified Happstack.State    as HA
 import qualified Happstack.Identity as HA
+import qualified Happstack.Identity.Auth.Password         as HA
 import qualified Happstack.Identity.Auth.Password.Default as HA
 ------------------------------------------------------------------------------
 import qualified Data.Acid          as AS
@@ -93,6 +94,14 @@ instance HA.HasPasswordManager Site where
     insertPasswordBundle pb = do
         st <- asks statePasswordManager 
         AS.update' st $! HA.InsertPasswordBundle pb
+
+    updatePasswordBundle pb = do
+        st <- asks statePasswordManager 
+        AS.update' st $! HA.UpdatePasswordBundle pb
+
+    deletePasswordBundle handle = do
+        st <- asks statePasswordManager 
+        AS.update' st $! HA.DeletePasswordBundle handle
 
     lookupPassword ph = do
         st <- asks statePasswordManager

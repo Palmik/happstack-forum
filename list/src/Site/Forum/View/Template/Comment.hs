@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -9,10 +10,7 @@ module Site.Forum.View.Template.Comment
 ------------------------------------------------------------------------------
 import           Common
 ------------------------------------------------------------------------------
-import           Text.Blaze ((!))
-import qualified Text.Blaze.Html             as B
-import qualified Text.Blaze.Html5            as B 
-import qualified Text.Blaze.Html5.Attributes as B hiding (title)
+import qualified Text.Blaze.Html as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
 ------------------------------------------------------------------------------
@@ -33,8 +31,9 @@ templateCreate view = def
 templateRead :: IF.PostID
              -> IF.CommentEntity
              -> B.Html
-templateRead pid (cid, IF.Comment{..}) = 
-    B.div $ do
-      B.div ! B.class_ "well" $ B.toHtml commentContent
-      B.a ! B.href (route $ I.Forum $ IF.CommentCreate pid $ Just cid) $ "Reply"
+templateRead pid (cid, IF.Comment IF.CommentData{..} _) = [m|
+  <div class="well well-small comment">
+    <div>{h|commentContent|}</div>
+    <a class="btn btn-mini" href={h|route $ I.Forum $ IF.CommentCreate pid $ Just cid|}>Reply</a>
+  </div> |]
 

@@ -24,8 +24,9 @@ import qualified Site.Forum.Model.Comment      as IF.Comment
 
 handler :: IF.HasForum m
         => IF.PostID
+        -> Page
         -> WR.RouteT IF.Route m HA.Response
-handler pid = do
+handler pid _ = do
     epost <- requireExists
     comments <- IF.Comment.getThreadByCreation $ key epost
     HA.ok =<< HA.toResponse <$> defaultTemplate (IF.Post.templateRead epost comments) 

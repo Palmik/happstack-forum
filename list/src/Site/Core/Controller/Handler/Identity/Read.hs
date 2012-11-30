@@ -10,14 +10,14 @@ module Site.Core.Controller.Handler.Identity.Read
 import           Common
 ------------------------------------------------------------------------------
 import qualified Happstack.Server as HA
-import qualified Happstack.Identity.Auth.Password as HA
-import qualified Text.Reform.Blaze.Common as HA
-import qualified Text.Reform.Happstack as HA
+-- import qualified Happstack.Identity.Auth.Password as HA
+-- import qualified Text.Reform.Blaze.Common as HA
+-- import qualified Text.Reform.Happstack as HA
 ------------------------------------------------------------------------------
 import qualified Web.Routes           as WR
-import qualified Web.Routes.Happstack as WR (seeOtherURL)
+-- import qualified Web.Routes.Happstack as WR (seeOtherURL)
 ------------------------------------------------------------------------------
-import qualified Text.Blaze.Html5 as B
+-- import qualified Text.Blaze.Html5 as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
 import qualified Site.Core.Route.Type             as IC

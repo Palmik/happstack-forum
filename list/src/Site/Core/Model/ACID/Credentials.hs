@@ -6,9 +6,15 @@
 
 module Site.Core.Model.ACID.Credentials
 ( signin
-, signup
 , Signin(..)
+, signup
 , Signup(..)
+, lookupByID
+, LookupByID(..)
+, lookupByIdentityID
+, LookupByIdentityID(..)
+, delete
+, Delete(..)
 
 , events
 
@@ -41,8 +47,7 @@ signin :: HA.Credentials
        -> AS.Query IC.CoreState (Maybe IC.IdentityID)
 signin crd = do
     IC.CoreState{..} <- ask
-    return $! IC.credentialsIdentityID . snd <$> IX.getOne (stCredentialsDB @= crd)
-
+    return $! IC.credentialsIdentityID . value <$> IX.getOne (stCredentialsDB @= crd)
 
 signup :: HA.Credentials
        -> AS.Update IC.CoreState (Maybe IC.IdentityID)
@@ -55,6 +60,18 @@ signup crd = do
          return $ Just iid
        else return Nothing
 
+lookupByID :: IC.CredentialsID -> AS.Query IC.CoreState (Maybe IC.Credentials)
+lookupByID cid = do
+    db <- asks IC.stCredentialsDB
+    return $ value <$> IX.getOne (db @= cid)
+
+lookupByIdentityID :: IC.IdentityID -> AS.Query IC.CoreState [(IC.CredentialsID, HA.Credentials)]
+lookupByIdentityID iid = do
+    db <- asks IC.stCredentialsDB
+    return . map tr . IX.toList $ db @= iid
+    where
+      tr (cid, crd) = (cid, IC.credentialsData crd)
+
 insert :: HA.Credentials -> IC.IdentityID -> AS.Update IC.CoreState ()
 insert crd iid = do
     st@IC.CoreState{..} <- get
@@ -62,6 +79,11 @@ insert crd iid = do
            , IC.stNextCredentialsID = nextID stNextCredentialsID
            }
 {-# INLINE insert #-}
+
+delete :: IC.CredentialsID -> AS.Update IC.CoreState ()
+delete cid = do
+    st@IC.CoreState{..} <- get
+    put st { IC.stCredentialsDB = IX.deleteIx cid stCredentialsDB }
 
 exist :: HA.Credentials -> AS.Query IC.CoreState Bool
 exist crd = do
@@ -71,6 +93,9 @@ exist crd = do
 
 $(AS.makeEvents "events" ''IC.CoreState [ 'signin
                                         , 'signup
+                                        , 'lookupByID
+                                        , 'lookupByIdentityID
+                                        , 'delete
                                         ])
 
 

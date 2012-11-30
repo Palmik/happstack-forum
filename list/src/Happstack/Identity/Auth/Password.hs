@@ -5,6 +5,8 @@ module Happstack.Identity.Auth.Password
 ( I.HasPasswordManager(..)
 , signin
 , signup
+, update
+, delete
 
 , module Export
 ) where
@@ -31,17 +33,16 @@ signin :: ( Applicative m, MonadIO m
        => I.PasswordHandle
        -> I.Password
        -> m (Maybe (I.IdentityID m))
-signin name pass = do
-    mres <- I.lookupPassword name 
+signin handle pass = do
+    mres <- I.lookupPassword handle 
     case mres of
-         Just (pid, passhash) -> 
-            if I.verifyPassword pass passhash
-               then do
-                 miid <- I.signinCredentials $ I.CredentialsPassword pid
-                 case miid of
-                      Just iid -> handleSession iid >> return (Just iid)
-                      Nothing  -> return Nothing
-               else return Nothing 
+         Just hash
+           | I.verifyPassword pass hash -> do 
+               miid <- I.signinCredentials $ I.CredentialsPassword handle
+               case miid of
+                    Just iid -> handleSession iid >> return (Just iid)
+                    Nothing  -> return Nothing
+           | otherwise -> return Nothing 
          Nothing  -> return Nothing
 
 signup :: ( Applicative m
@@ -53,16 +54,53 @@ signup :: ( Applicative m
        => I.PasswordHandle 
        -> I.Password
        -> m (Maybe (I.IdentityID m))
-signup name pass = do
-    bundle <- makePasswordBundle name pass 
-    mpid   <- I.insertPasswordBundle $! bundle 
-    case mpid of
-         Just pid -> do
-           miid <- I.signupCredentials $ I.CredentialsPassword pid
-           case miid of
-                Just iid -> handleSession iid >> return (Just iid)
-                Nothing  -> return Nothing
-         Nothing  -> return Nothing
+signup handle pass = do
+    bundle  <- I.makePasswordBundle handle pass 
+    success <- I.insertPasswordBundle $! bundle 
+    if success
+       then do
+         miid <- I.signupCredentials $ I.CredentialsPassword handle
+         case miid of
+             Just iid -> handleSession iid >> return (Just iid)
+             Nothing  -> return Nothing
+       else return Nothing
+
+update :: ( Applicative m
+          , MonadIO m
+          , HA.FilterMonad HA.Response m
+          , I.HasPasswordManager m
+          , Show (I.IdentityID m)
+          )
+       => I.PasswordHandle 
+       -> I.Password
+       -> I.Password
+       -> m Bool
+update handle old new = do
+    mres <- I.lookupPassword handle
+    case mres of
+        Just hash
+          | I.verifyPassword old hash -> do
+              bundle <- I.makePasswordBundle handle new
+              I.updatePasswordBundle bundle 
+          | otherwise -> return False
+        Nothing -> return False
+
+delete :: ( Applicative m
+          , MonadIO m
+          , HA.FilterMonad HA.Response m
+          , I.HasPasswordManager m
+          , Show (I.IdentityID m)
+          )
+       => I.PasswordHandle 
+       -> I.Password
+       -> m Bool
+delete handle pass = do
+    mres <- I.lookupPassword handle
+    case mres of
+        Just hash
+          | I.verifyPassword pass hash -> I.deletePasswordBundle handle 
+          | otherwise -> return False
+        Nothing -> return False
 
 ------------------------------------------------------------------------------
 -- | CONVENIENCE FUNCTIONS
@@ -77,11 +115,4 @@ handleSession iid = do
     (s, skey, scookie) <- I.createSessionData iid
     I.createSessionCookie scookie 
     I.insertSession skey s   
-
-makePasswordBundle :: (Applicative m, MonadIO m)
-		               => I.PasswordHandle 
-		               -> I.Password 
-                   -> m I.PasswordBundle 
-makePasswordBundle name pass = I.PasswordBundle name <$>
-                                   I.makePasswordSaltedHash pass 13
 

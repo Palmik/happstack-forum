@@ -1,8 +1,9 @@
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Site.Forum.View.Template.Forum
-( templateList
+( templateListRead
 
 , templateRead
 , templateCreate
@@ -11,12 +12,10 @@ module Site.Forum.View.Template.Forum
 ------------------------------------------------------------------------------
 import           Common
 ------------------------------------------------------------------------------
-import           Text.Blaze ((!))
-import qualified Text.Blaze.Html             as B
-import qualified Text.Blaze.Html5            as B 
-import qualified Text.Blaze.Html5.Attributes as B hiding (title)
+import qualified Text.Blaze.Html as B
 ------------------------------------------------------------------------------
 import           Site.Common.View.Template
+import           Site.Common.Model
 ------------------------------------------------------------------------------
 import qualified Site.Route.Type as I
 import qualified Site.Forum.Route.Type as IF
@@ -24,51 +23,72 @@ import qualified Site.Forum.Model.Type as IF
 import qualified Site.Forum.View.Template.Post as IF.Post
 ------------------------------------------------------------------------------
 
-templateList :: [IF.ForumEntity]
-             -> DefaultTemplate
-templateList flist = def 
+templateListRead :: [IF.ForumEntity]
+                 -> DefaultTemplate
+templateListRead flist = def 
     { templateSectionM = [middle]
     , templateSectionR = [right]
     , templateTitle = "Forum List"
     }
     where
-      middle = B.table ! B.class_ "table table-striped table-bordered" $ do
-        B.thead $ B.tr $ B.th "Forum Name"  
-        B.tbody $ mapM_ forumCell flist
-      right  = B.a ! B.href (route $ I.Forum IF.ForumCreate) $ "Create Forum" 
+      middle = [m|
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Forum Name</th>
+            </tr>
+          </thead> 
+          <tbody>
+            {h| mapM_ forumCell flist |}
+          </tbody>        
+        </table> |]
+      
+      right  = [m|
+        <a class="btn btn-wide btn-wide" href={h|route $ I.Forum $ IF.ForumCreate PathRoot|}>Create Forum</a>
+        |]
 
 templateRead :: IF.ForumEntity
              -> [IF.PostEntity]
              -> DefaultTemplate
-templateRead (_, IF.Forum{..}) plist = def
+templateRead (_, IF.Forum IF.ForumData{..} IF.ForumDataExtra{..}) plist = def
     { templateSectionM = [middle]
     , templateSectionR = [right]
-    , templateTitle = forumName <> " :: Forum"
+    , templateTitle = forumTitle <> " :: Forum"
     }
     where
-      middle = B.table ! B.class_ "table table-striped table-bordered" $ do
-        B.thead $ B.tr $ B.th "Post Title"
-        B.tbody $ mapM_ IF.Post.postCell plist
-      right  = 
-        B.ul $ do
-          B.li $ B.a ! B.href (route $ I.Forum IF.PostCreate) $ "Create Post"
-          B.li $ B.a ! B.href (route $ I.Forum $ IF.ForumCreateSub forumPath) $ "Create Sub-Forum"
+      middle = [m|
+        <h2>{h|forumTitle|}</h2>
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Post Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            {h| mapM_ IF.Post.postCell plist |}
+          </tbody>
+        </table> |]
+      
+      right  = [m|
+        <a class="btn btn-wide btn-wide" href={h|route $ I.Forum IF.PostCreate|}>Create Post</a>
+        <a class="btn btn-wide btn-wide" href={h|route $ I.Forum $ IF.ForumCreate forumPath|}>Create Sub-Forum</a>
+        <div>{h|forumDescription|}</div>
+        |]
 
 templateCreate :: B.Html
                -> DefaultTemplate
 templateCreate view = def 
     { templateSectionM = [middle]
-    , templateSectionR = [right]
     , templateTitle = "Forum Creation"
     }
     where
-      middle = do
-        B.h2 "Forum Creation"
-        view
-
-      right  = B.a ! B.href (route $ I.Forum IF.ForumCreate) $ "Create Forum" 
+      middle = [m|
+        <h2>Forum Creation</h2>
+        {h|view|} |]
 
 forumCell :: IF.ForumEntity -> B.Html
-forumCell (_, IF.Forum{..}) =  
-    B.tr $ B.td $ B.a ! B.href (route $ I.Forum $ IF.ForumReadFrontPage forumPath) $ B.toHtml forumName
+forumCell (_, IF.Forum IF.ForumData{..} IF.ForumDataExtra{..}) = [m|
+  <tr>
+    <td><a href={h|route $ I.Forum $ IF.ForumRead forumPath PageFront|}>{h|forumTitle|}</a></td>
+  </tr> |]
 
